@@ -17,10 +17,10 @@ async function listCategories(userId, { includeInactive = false } = {}) {
   }));
 }
 
-async function getCategory(userId, categoryId) {
-  const category = await db('categories').where({ id: categoryId, user_id: userId }).first();
+async function getCategory(userId, categoryId, trx = db) {
+  const category = await trx('categories').where({ id: categoryId, user_id: userId }).first();
   if (!category) throw new ApiError(404, 'Category not found');
-  const stats = await db('category_stats').where({ category_id: categoryId });
+  const stats = await trx('category_stats').where({ category_id: categoryId });
   return { ...category, stats: stats.map((s) => ({ statName: s.stat_name, weight: Number(s.weight) })) };
 }
 
@@ -46,7 +46,11 @@ async function createCategory(userId, data) {
       );
     }
 
-    return getCategory(userId, category.id);
+    // Must read back through the same transaction: a separate connection (what
+    // the bare `db` instance would use) can't see this row until commit, and
+    // against a transaction-mode pooler (e.g. Neon's) that's reliably a
+    // different physical connection - not just a rare race.
+    return getCategory(userId, category.id, trx);
   });
 }
 
@@ -76,7 +80,7 @@ async function updateCategory(userId, categoryId, data) {
       }
     }
 
-    return getCategory(userId, categoryId);
+    return getCategory(userId, categoryId, trx);
   });
 }
 
