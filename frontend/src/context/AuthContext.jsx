@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import * as authApi from '../api/auth';
-import { setUnauthorizedHandler } from '../api/client';
+import { setUnauthorizedHandler, setToken, clearToken, getToken } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -9,21 +9,29 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const clearSession = useCallback(() => setUser(null), []);
+  const clearSession = useCallback(() => {
+    clearToken();
+    setUser(null);
+  }, []);
 
   useEffect(() => {
     setUnauthorizedHandler(clearSession);
+    if (!getToken()) {
+      setLoading(false);
+      return;
+    }
     authApi
       .me()
       .then(setUser)
-      .catch(() => setUser(null))
+      .catch(() => clearSession())
       .finally(() => setLoading(false));
   }, [clearSession]);
 
   const login = useCallback(async (identifier, password) => {
     setError(null);
     try {
-      const { user: loggedInUser } = await authApi.login(identifier, password);
+      const { user: loggedInUser, token } = await authApi.login(identifier, password);
+      setToken(token);
       setUser(loggedInUser);
       return true;
     } catch (err) {
@@ -36,9 +44,9 @@ export function AuthProvider({ children }) {
     try {
       await authApi.logout();
     } finally {
-      setUser(null);
+      clearSession();
     }
-  }, []);
+  }, [clearSession]);
 
   return (
     <AuthContext.Provider value={{ user, loading, error, login, logout }}>

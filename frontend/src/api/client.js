@@ -7,9 +7,33 @@ import axios from 'axios';
 // production, where frontend and backend are on different domains entirely.
 const baseURL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:4000/api`;
 
+const TOKEN_KEY = 'ascend:token';
+
+// Auth is carried as a bearer token in localStorage/Authorization header rather
+// than a cookie. Frontend and backend sit on different domains in production
+// (vercel.app / onrender.com), making every call cross-site - a cross-site
+// cookie needs SameSite=None, and Safari/iOS (this app's primary target
+// device) blocks exactly that under its cross-site tracking protection,
+// regardless of the SameSite setting. A bearer token has none of that baggage.
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+export function setToken(token) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 const client = axios.create({
   baseURL,
   withCredentials: true,
+});
+
+client.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
 });
 
 let onUnauthorized = null;

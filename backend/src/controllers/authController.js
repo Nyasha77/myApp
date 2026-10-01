@@ -7,6 +7,15 @@ const { ApiError } = require('../middleware/errorHandler');
 
 const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+// This cookie is a fallback, not the SPA's real auth mechanism - the frontend
+// authenticates its own XHR/fetch calls with an Authorization: Bearer header
+// instead (see frontend/src/api/client.js for why: cross-site cookies and
+// Safari/iOS don't mix well). The cookie exists only for requireAuth to
+// identify the user on the Strava OAuth redirect, which is a real top-level
+// browser navigation with no way to attach a header - and SameSite=Lax is
+// sent on exactly that kind of cross-site navigation, so it still works there.
+const COOKIE_OPTIONS = { httpOnly: true, secure: env.isProduction, sameSite: 'lax', maxAge: COOKIE_MAX_AGE_MS };
+
 function signToken(user) {
   return jwt.sign(
     { sub: user.id, username: user.username, timezone: user.timezone },
@@ -16,12 +25,7 @@ function signToken(user) {
 }
 
 function setAuthCookie(res, token) {
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: env.isProduction,
-    sameSite: 'lax',
-    maxAge: COOKIE_MAX_AGE_MS,
-  });
+  res.cookie('token', token, COOKIE_OPTIONS);
 }
 
 const login = asyncHandler(async (req, res) => {
@@ -44,7 +48,9 @@ const login = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
-  res.clearCookie('token');
+  // clearCookie must be called with the same attributes used to set it, or
+  // some browsers won't recognize it as the same cookie and silently no-op.
+  res.clearCookie('token', COOKIE_OPTIONS);
   res.json({ success: true });
 });
 
