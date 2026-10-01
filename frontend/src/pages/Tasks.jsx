@@ -10,47 +10,42 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../context/ToastContext';
 import { todayLocalISO, formatDate } from '../utils/format';
 import { addDays } from '../utils/dateMath';
+import { useTaskToggle } from '../hooks/useTaskToggle';
+import { readCache, writeCache } from '../utils/cache';
 
 export default function Tasks() {
   const [date, setDate] = useState(todayLocalISO());
-  const [tasks, setTasks] = useState([]);
+  const [tasks, setTasks] = useState(() => readCache(`tasks:${todayLocalISO()}`) || []);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(tasks.length === 0);
   const [modalTask, setModalTask] = useState(undefined); // undefined = closed, null = new, object = edit
-  const [busyTaskId, setBusyTaskId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
 
   const load = useCallback(async (d) => {
-    setLoading(true);
     const [taskRes, cats] = await Promise.all([taskApi.getTasks(d), getCategories()]);
     setTasks(taskRes.tasks);
     setCategories(cats);
     setLoading(false);
+    writeCache(`tasks:${d}`, taskRes.tasks);
   }, []);
 
   useEffect(() => {
+    const cached = readCache(`tasks:${date}`);
+    if (cached) {
+      setTasks(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     load(date);
   }, [date, load]);
 
-  const handleToggle = async (task) => {
-    setBusyTaskId(task.id);
-    try {
-      if (task.completed) {
-        await taskApi.uncompleteTask(task.id, date);
-      } else {
-        const result = await taskApi.completeTask(task.id, date);
-        toast.xp(result.xpEarned, task.title);
-        if (result.progression.leveledUp) toast.levelUp(result.progression.previousLevel, result.progression.level);
-        result.newAchievements?.forEach((a) => toast.achievement(a));
-      }
-      await load(date);
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Something went wrong');
-    } finally {
-      setBusyTaskId(null);
-    }
-  };
+  const { toggle: handleToggle, busyTaskId } = useTaskToggle({
+    setTasks,
+    date,
+    onSettled: () => load(date),
+  });
 
   const handleSubmit = async (payload) => {
     setSubmitting(true);
@@ -70,8 +65,14 @@ export default function Tasks() {
   };
 
   const handleDelete = async (task) => {
-    await taskApi.deleteTask(task.id);
-    await load(date);
+    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    try {
+      await taskApi.deleteTask(task.id);
+      load(date);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not delete task');
+      load(date);
+    }
   };
 
   return (

@@ -14,14 +14,17 @@ import TaskForm from '../components/TaskForm';
 import { getCategoryColor } from '../utils/colors';
 import { DynamicIcon } from '../utils/icons.jsx';
 import { useToast } from '../context/ToastContext';
+import { useTaskToggle } from '../hooks/useTaskToggle';
+import { readCache, writeCache } from '../utils/cache';
+
+const CACHE_KEY = 'dashboard';
 
 export default function Dashboard() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => readCache(CACHE_KEY));
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!readCache(CACHE_KEY));
   const [modalTask, setModalTask] = useState(undefined); // undefined = closed, null = new, object = edit
   const [submitting, setSubmitting] = useState(false);
-  const [busyTaskId, setBusyTaskId] = useState(null);
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -29,32 +32,24 @@ export default function Dashboard() {
     setData(dashboard);
     setCategories(cats);
     setLoading(false);
+    writeCache(CACHE_KEY, dashboard);
   }, []);
 
   useEffect(() => {
+    // If a cached snapshot already painted the screen, this refetch happens
+    // silently underneath it rather than blocking on a loading state again.
     load();
   }, [load]);
 
-  const handleToggle = async (task) => {
-    setBusyTaskId(task.id);
-    try {
-      if (task.completed) {
-        await taskApi.uncompleteTask(task.id, data.date);
-      } else {
-        const result = await taskApi.completeTask(task.id, data.date);
-        toast.xp(result.xpEarned, task.title);
-        if (result.progression.leveledUp) toast.levelUp(result.progression.previousLevel, result.progression.level);
-        result.statChanges.forEach((s) => toast.stat(s.statName, s.delta));
-        if (result.isComeback) toast.xp(result.comebackBonus, 'Comeback bonus!');
-        result.newAchievements?.forEach((a) => toast.achievement(a));
-      }
-      await load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Something went wrong');
-    } finally {
-      setBusyTaskId(null);
-    }
-  };
+  const setTasks = useCallback((updater) => {
+    setData((prev) => (prev ? { ...prev, tasks: updater(prev.tasks) } : prev));
+  }, []);
+
+  const { toggle: handleToggle, busyTaskId } = useTaskToggle({
+    setTasks,
+    date: data?.date,
+    onSettled: load,
+  });
 
   const handleSubmit = async (payload) => {
     setSubmitting(true);
@@ -74,11 +69,17 @@ export default function Dashboard() {
   };
 
   const handleDelete = async (task) => {
-    await taskApi.deleteTask(task.id);
-    await load();
+    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    try {
+      await taskApi.deleteTask(task.id);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not delete task');
+      load(); // resync - the optimistic removal may need reverting
+    }
   };
 
-  if (loading) {
+  if (loading || !data) {
     return (
       <div className="space-y-6">
         <LoadingSkeleton rows={1} />

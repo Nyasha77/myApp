@@ -13,6 +13,7 @@ import EmptyState from '../components/EmptyState';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../context/ToastContext';
 import { todayLocalISO } from '../utils/format';
+import { useTaskToggle } from '../hooks/useTaskToggle';
 
 export default function Gym() {
   const [categories, setCategories] = useState([]);
@@ -23,7 +24,6 @@ export default function Gym() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // 'activity' | 'benchmark' | null
   const [submitting, setSubmitting] = useState(false);
-  const [busyTaskId, setBusyTaskId] = useState(null);
   const [stravaConnected, setStravaConnected] = useState(false);
   const [postDuration, setPostDuration] = useState(60);
   const [postNotes, setPostNotes] = useState('');
@@ -66,24 +66,7 @@ export default function Gym() {
     return [...map.entries()].map(([activityName, metrics]) => ({ activityName, metrics }));
   }, [personalBests]);
 
-  const handleToggleTask = async (task) => {
-    setBusyTaskId(task.id);
-    try {
-      if (task.completed) {
-        await taskApi.uncompleteTask(task.id, today);
-      } else {
-        const result = await taskApi.completeTask(task.id, today);
-        toast.xp(result.xpEarned, task.title);
-        if (result.progression.leveledUp) toast.levelUp(result.progression.previousLevel, result.progression.level);
-        result.newAchievements?.forEach((a) => toast.achievement(a));
-      }
-      await load();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Something went wrong');
-    } finally {
-      setBusyTaskId(null);
-    }
-  };
+  const { toggle: handleToggleTask, busyTaskId } = useTaskToggle({ setTasks, date: today, onSettled: load });
 
   const handleLogActivity = async (data) => {
     setSubmitting(true);
