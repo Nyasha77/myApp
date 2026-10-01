@@ -8,6 +8,11 @@ const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
+// Render (and most PaaS hosts) terminate TLS at a reverse proxy in front of the
+// app - without this, express-rate-limit can't safely derive the real client IP
+// from X-Forwarded-For and throws on every request in production.
+if (env.isProduction) app.set('trust proxy', 1);
+
 const allowedOrigins = env.frontendUrl.split(',').map((s) => s.trim());
 // A phone on the same Wi-Fi opens the dev server via a LAN IP (e.g. 192.168.x.x:5173)
 // rather than localhost, and that IP changes with the router's DHCP lease - so in

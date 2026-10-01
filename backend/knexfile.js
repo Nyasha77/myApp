@@ -20,6 +20,9 @@ module.exports = {
   },
   production: {
     ...base,
+    // Managed Postgres providers (Neon, Supabase, Render, RDS, ...) require TLS
+    // and typically present a cert chain `pg` won't validate out of the box.
+    connection: { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } },
     pool: { min: 2, max: 10 },
   },
 };
