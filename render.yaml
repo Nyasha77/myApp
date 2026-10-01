@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: ascend-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install && npm run migrate
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: FRONTEND_URL
+        sync: false
+      - key: DEFAULT_TIMEZONE
+        value: Africa/Windhoek
+      - key: SEED_USERNAME
+        sync: false
+      - key: SEED_EMAIL
+        sync: false
+      - key: SEED_PASSWORD
+        sync: false
+      - key: STRAVA_CLIENT_ID
+        sync: false
+      - key: STRAVA_CLIENT_SECRET
+        sync: false
+      - key: STRAVA_REDIRECT_URI
+        sync: false
