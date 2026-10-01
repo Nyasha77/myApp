@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const env = require('./config/env');
 const routes = require('./routes');
-const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+const { ApiError, notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
@@ -13,7 +13,11 @@ const app = express();
 // from X-Forwarded-For and throws on every request in production.
 if (env.isProduction) app.set('trust proxy', 1);
 
-const allowedOrigins = env.frontendUrl.split(',').map((s) => s.trim());
+// A browser's Origin header never has a trailing slash or path, but a pasted
+// URL in an env var easily does - normalizing both sides means that mismatch
+// can never silently break CORS regardless of exactly how the value was entered.
+const stripTrailingSlash = (url) => url.replace(/\/+$/, '');
+const allowedOrigins = env.frontendUrl.split(',').map((s) => stripTrailingSlash(s.trim()));
 // A phone on the same Wi-Fi opens the dev server via a LAN IP (e.g. 192.168.x.x:5173)
 // rather than localhost, and that IP changes with the router's DHCP lease - so in
 // development, any private-network origin is allowed rather than hardcoding one.
@@ -24,9 +28,9 @@ app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true); // same-origin / non-browser requests
-      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (allowedOrigins.includes(stripTrailingSlash(origin))) return callback(null, true);
       if (!env.isProduction && LAN_ORIGIN.test(origin)) return callback(null, true);
-      return callback(new Error('Not allowed by CORS'));
+      return callback(new ApiError(403, `Origin ${origin} is not allowed (check FRONTEND_URL)`));
     },
     credentials: true,
   })
