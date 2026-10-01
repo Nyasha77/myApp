@@ -16,7 +16,7 @@ services:
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: FRONTEND_URL
-        sync: false
+        value: https://my-app-nine-dun.vercel.app
       - key: DEFAULT_TIMEZONE
         value: Africa/Windhoek
       - key: SEED_USERNAME
