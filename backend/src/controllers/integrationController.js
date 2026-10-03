@@ -1,14 +1,29 @@
-const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const asyncHandler = require('../utils/asyncHandler');
 const stravaService = require('../services/stravaService');
 const env = require('../config/env');
 const { ApiError } = require('../middleware/errorHandler');
 
-const STATE_COOKIE = 'strava_oauth_state';
+// The OAuth dance is a real browser navigation (click link -> Strava -> redirect
+// back), not an XHR, so it can't carry an Authorization header, and a cookie set
+// by a cross-site login XHR isn't reliably stored by modern browsers either. The
+// `state` param Strava echoes back verbatim is the one thing that survives the
+// round trip unmodified, so it doubles as both CSRF protection (a signed value
+// an attacker can't forge) and the sole carrier of "which user started this" -
+// no cookie or session storage involved on either end.
+const STATE_EXPIRY = '15m';
+
+function signState(userId) {
+  return jwt.sign({ uid: userId }, env.jwtSecret, { expiresIn: STATE_EXPIRY });
+}
+
+function verifyState(state) {
+  const payload = jwt.verify(state, env.jwtSecret);
+  return payload.uid;
+}
 
 const stravaConnect = asyncHandler(async (req, res) => {
-  const state = crypto.randomBytes(16).toString('hex');
-  res.cookie(STATE_COOKIE, state, { httpOnly: true, secure: env.isProduction, sameSite: 'lax', maxAge: 10 * 60 * 1000 });
+  const state = signState(req.user.id);
   res.redirect(stravaService.getAuthorizationUrl(state));
 });
 
@@ -17,11 +32,16 @@ const stravaCallback = asyncHandler(async (req, res) => {
   const { code, state, error } = req.query;
 
   if (error) return res.redirect(`${frontendUrl}/settings?strava=denied`);
-  if (!state || state !== req.cookies?.[STATE_COOKIE]) return res.redirect(`${frontendUrl}/settings?strava=error`);
-  res.clearCookie(STATE_COOKIE);
+
+  let userId;
+  try {
+    userId = verifyState(state);
+  } catch {
+    return res.redirect(`${frontendUrl}/settings?strava=error`);
+  }
 
   const tokenData = await stravaService.exchangeCodeForTokens(code);
-  await stravaService.saveConnection(req.user.id, tokenData);
+  await stravaService.saveConnection(userId, tokenData);
   res.redirect(`${frontendUrl}/settings?strava=connected`);
 });
 
