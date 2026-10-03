@@ -7,8 +7,6 @@ import { useToast } from '../context/ToastContext';
 import * as authApi from '../api/auth';
 import * as stravaApi from '../api/strava';
 
-const IS_LOCALHOST = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-
 const THEME_OPTIONS = [
   { key: 'light', label: 'Light', icon: Sun },
   { key: 'dark', label: 'Dark', icon: Moon },
@@ -155,15 +153,14 @@ export default function Settings() {
               </button>
             </div>
           </div>
-        ) : IS_LOCALHOST ? (
+        ) : (
+          // The redirect target is a fixed setting on the backend (whichever domain
+          // is registered as Strava's "Authorization Callback Domain"), not something
+          // that depends on which host served this page - so the button works the
+          // same whether you're on the deployed site or a phone on the LAN.
           <a href={stravaApi.connectStravaUrl()} className="btn-primary w-full">
             Connect Strava
           </a>
-        ) : (
-          <p className="text-sm text-slate-500">
-            Open this app at <span className="text-slate-300">http://localhost:5173</span> on this computer to connect
-            Strava &mdash; its login can&apos;t be completed from a phone/LAN address.
-          </p>
         )}
       </section>
 
