@@ -84,6 +84,18 @@ const STREAK_GRACE_DAYS = 0; // 0 = a missed day breaks the streak immediately
 
 const COMEBACK_BONUS_XP = 25; // awarded once when returning to a category after it had decayed
 
+/**
+ * Penalty for a task that goes unfinished through its whole scheduled day -
+ * distinct from category decay (which fires from total category inactivity).
+ * Only applies once a stat has gone MISSED_TASK_GRACE_DAYS with no positive
+ * contribution from ANY task feeding it, so one occasional miss while the
+ * stat is otherwise being actively worked never costs anything - it only
+ * bites during a genuine multi-day lapse, same spirit as decay's grace period.
+ */
+const MISSED_TASK_PENALTY_FACTOR = 0.5; // fraction of the stat's would-be gain lost
+const MISSED_TASK_GRACE_DAYS = 2;
+const MISSED_TASK_MAX_DAYS_PER_RUN = 14; // safety cap, mirrors DECAY_MAX_PER_RUN
+
 const ACHIEVEMENT_REQUIREMENT_TYPES = {
   FIRST_TASK_COMPLETED: 'first_task_completed',
   STREAK_DAYS: 'streak_days',
@@ -153,6 +165,9 @@ module.exports = {
   DECAY_MAX_PER_RUN,
   STREAK_GRACE_DAYS,
   COMEBACK_BONUS_XP,
+  MISSED_TASK_PENALTY_FACTOR,
+  MISSED_TASK_GRACE_DAYS,
+  MISSED_TASK_MAX_DAYS_PER_RUN,
   ACHIEVEMENT_REQUIREMENT_TYPES,
   xpRequiredForLevel,
   getLevelProgress,

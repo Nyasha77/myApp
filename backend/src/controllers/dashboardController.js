@@ -5,6 +5,7 @@ const statService = require('../services/statService');
 const streakService = require('../services/streakService');
 const categoryService = require('../services/categoryService');
 const decayService = require('../services/decayService');
+const missedTaskService = require('../services/missedTaskService');
 const dailySummaryService = require('../services/dailySummaryService');
 const stravaService = require('../services/stravaService');
 const { todayInTimezone } = require('../utils/dateUtils');
@@ -15,6 +16,7 @@ const get = asyncHandler(async (req, res) => {
   const today = todayInTimezone(timezone);
 
   const decayEvents = await decayService.runDecayForUser(userId, timezone);
+  const missedTaskEvents = await missedTaskService.processMissedTasksForUser(userId, timezone);
 
   // Best-effort: syncing "only when the app opens" means right here, but a
   // Strava hiccup (expired token, rate limit, network blip) must never break
@@ -63,6 +65,7 @@ const get = asyncHandler(async (req, res) => {
     streaks,
     categoryProgress,
     decayEvents,
+    missedTaskEvents,
     stravaNewRuns: stravaSync?.newRuns || [],
   });
 });
